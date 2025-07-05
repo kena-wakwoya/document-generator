@@ -4,17 +4,27 @@ import { InjectModel } from '@nestjs/sequelize';
 import { User, UserRole } from 'src/user/user.model';
 import { UpdateDocumentDto } from './dto/update-document.dto';
 import { CreateDocumentDto } from './dto/create-document.dto';
+import { Sequelize, Transaction } from 'sequelize';
 
 @Injectable()
 export class DocumentService {
     constructor(
         @InjectModel(Document)
         private docModel: typeof Document,
+        private readonly sequelize: Sequelize
     ) { }
 
     async create(createDto: CreateDocumentDto, ownerID: number) {
-    return this.docModel.create({ ...createDto, ownerID } as any);
-  }
+        const transaction = await this.sequelize.transaction();
+        try {
+            const doc = await this.docModel.create({ ...createDto, ownerID }, { transaction });
+            await transaction.commit();
+            return doc;
+        } catch (error) {
+            await transaction.rollback();
+            throw error;
+        }
+    }
 
     async findAll(page: number, limit: number, user: any): Promise<{ payload: Document[], total: number }> {
         if (user.role === UserRole.ADMIN) {
@@ -43,28 +53,42 @@ export class DocumentService {
 
     }
 
-    async findOne(id: number, user: any) {
-    const doc = await this.docModel.findByPk(id);
-    if (!doc) throw new NotFoundException('Document not found');
-    if (user.role !== 'ADMIN' && doc.ownerID !== user.userId) {
-      throw new ForbiddenException('Unauthorized Access');
+    async findOne(id: number, user: any, transaction?: Transaction) {
+        const doc = await this.docModel.findByPk(id,{transaction});
+        if (!doc) throw new NotFoundException('Document not found');
+        if (user.role !== 'ADMIN' && doc.ownerID !== user.userId) {
+            throw new ForbiddenException('Unauthorized Access');
+        }
+
+        return doc;
     }
 
-    return doc;
-  }
-
-  async update(id:number,updateData:UpdateDocumentDto,user:any){
-    const doc = await this.findOne(+id,user)
-    return doc.update(updateData)
-  }
-
-  async remove(id:number){
-    const doc = await this.docModel.findByPk(id)
-    if(!doc){
-        throw new NotFoundException('Document not found')
-
+    async update(id: number, updateData: UpdateDocumentDto, user: any) {
+        const transaction = await this.sequelize.transaction();
+        try {
+            const doc = await this.findOne(+id, user, transaction)
+            const updatedDoc = await doc.update(updateData, { transaction });
+            await transaction.commit();
+            return updatedDoc
+        } catch (error) {
+            await transaction.rollback();
+            throw error;
+        }
     }
-    await doc.destroy();
-  }
+
+    async remove(id: number, user: any): Promise<void> {
+        const transaction = await this.sequelize.transaction();
+
+        try {
+            const doc = await this.findOne(id, user, transaction);
+            await doc.destroy({ transaction });
+
+            await transaction.commit();
+        } catch (error) {
+            await transaction.rollback();
+            throw error;
+        }
+    }
+
 
 }

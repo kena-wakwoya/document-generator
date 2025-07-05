@@ -1,5 +1,5 @@
 
-import { IsEmail, IsEnum, IsNotEmpty, IsString, minLength, MinLength } from 'class-validator';
+import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, minLength, MinLength } from 'class-validator';
 import { UserRole } from '../user.model';
 
 export class CreateUserDto {
@@ -17,7 +17,7 @@ export class CreateUserDto {
     })
     password:string
 
-    @IsNotEmpty()
+    @IsOptional()
     @IsEnum(UserRole, {
         message: 'User role must be either user or admin',
     })

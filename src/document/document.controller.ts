@@ -34,8 +34,8 @@ export class DocumentController {
 
     @Delete(':id')
     @Roles('ADMIN') //only admin can delete
-    delete(@Param('id') id: string) {
-        return this.docService.remove(+id)
+    delete(@Param('id') id: string,@Req() req) {
+        return this.docService.remove(+id,req.user)
     }
 
 
